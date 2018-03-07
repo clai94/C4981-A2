@@ -1,25 +1,5 @@
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <unistd.h>
 #include "mesg.h"
-
-#define MAX_MSGSIZE           256    // max message size
-#define SERVER_MSG_TYPE (long)1     // server's message type
-#define CLIENT_MSG_TYPE (long)2     // client's message type
-#define MSG_PERM (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH) // msg flags
-
-typedef struct Message              
-{
-    // int mesg_len; /* #bytes in mesg_data */
-    long mesg_type; /* message type */
-    char mesg_data[MAX_MSGSIZE];
-} Message;
+#include "messages.c"
 
 int main(int argc, char** argv) {
 
@@ -32,8 +12,8 @@ int main(int argc, char** argv) {
     long msgType;         // msg type
     key_t msgKey;         // msg key
     char filename[MAX_MSGSIZE];
-    Message sendMsg;         // msg to send
-    Message recvMsg;         // msg to receive
+    Mesg sendMsg;         // msg to send
+    Mesg recvMsg;         // msg to receive
 
 
     if (argc < 2) {
@@ -49,8 +29,8 @@ int main(int argc, char** argv) {
     msgKey = (long) temp;
 
     // obtain the corresponding message queue
-    if ((msgQID = msgget(msgKey, 0666)) < 0 ) {
-       perror("CLIENT: msgget");
+    if ((msgQID = msgget(msgKey, 0666 | IPC_CREAT)) < 0 ) {
+       perror("SERVER: msgget");
        exit(EXIT_FAILURE);
     }
 
@@ -78,11 +58,14 @@ int main(int argc, char** argv) {
 
         if (childpid == 0) {
             long client_pid;
-            sscanf(recvMsg.mesg_data, "%s %ld", filename, &client_pid);
+            long priority;
+            sscanf(recvMsg.mesg_data, "%s %ld %ld", filename, &client_pid, &priority);
+            printf("%s\n", recvMsg.mesg_data);
             printf("Requested file: %s\n", filename);
+            printf("Client ID: %ld\n", client_pid);
+            printf("Client Priority: %ld\n", priority);
+
             sendMsg.mesg_type = client_pid;
-            // printf("Requested file: %s\n", recvMsg.mesg_data);
-            // sprintf(filename, "%s", recvMsg.mesg_data);
             
             // open file for sending
             fp = fopen(filename, "r");
@@ -92,18 +75,19 @@ int main(int argc, char** argv) {
                     perror("SERVER: msgsnd");
                     exit(EXIT_FAILURE);
                 }
+                // mesg_send(msgQID, sendMsg);
                 perror("Could not open file");
                 exit(1);
 
             } else {
                 // send contents
-                while (fgets(sendMsg.mesg_data, MAX_MSGSIZE, fp)) {
+                while (fgets(sendMsg.mesg_data, (MAX_MSGSIZE) / priority, fp)) {
 
-                    if (msgsnd(msgQID, &sendMsg, strlen(sendMsg.mesg_data) + 1, msgFlags) < 0) {
+                    if (msgsnd(msgQID, &sendMsg, (strlen(sendMsg.mesg_data) + 1), msgFlags) < 0) {
                         perror("SERVER: msgsnd");
                         exit(EXIT_FAILURE);
                     }
-
+                    // mesg_send(msgQID, sendMsg);
                 }
             }
 
@@ -113,6 +97,8 @@ int main(int argc, char** argv) {
                 perror("SERVER: msgsnd");
                 exit(EXIT_FAILURE);
             }
+            // mesg_send(msgQID, &sendMsg);
+
 
             fclose(fp);
             printf("File successully sent.\n");

@@ -1,50 +1,25 @@
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <unistd.h>
 #include "mesg.h"
-
-/*------------------------------------------+
-| Constants                                 |
-+------------------------------------------*/
-/* maximum message size           */
-#define MAX_MSGSIZE           256    // max message size
-#define SERVER_MSG_TYPE (long)1     // server's message type
-#define CLIENT_MSG_TYPE (long)2     // client's message type
-#define MSG_PERM (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH) // msg flags
-
-typedef struct Message              
-{
-    // int mesg_len; /* #bytes in mesg_data */
-    long mesg_type; /* message type */
-    char mesg_data[MAX_MSGSIZE];
-} Message;
 
 int main(int argc, char** argv) {
 
     int msgQID;           // msg queue id
     int msgFlags;         // msg flags
     int temp;
+    int temp2;
     int x = 0;
+    int start = 0;
+    int init = 0;
+    int final = 0;
+    long priority;
     long msgType;         // msg type
     key_t msgKey;         // msg key
-    Message sendMsg;         // msg to send
-    Message recvMsg;         // msg to receive
+    time_t t = time(NULL);  
+    struct tm tm = *localtime(&t);
+    Mesg sendMsg;         // msg to send
+    Mesg recvMsg;         // msg to receive
     
-
-/*------------------------------------------*/
-/* Get the message queue id for MSG_KEY,    */
-/* which was set by the                     */
-/* message server.                          */
-/*------------------------------------------*/
-//    msgKey = (long) 101;
-    if (argc < 3) {
-        printf("usage: %s MSGKEY FILENAME\n", argv[0]);
+    if (argc < 4) {
+        printf("usage: %s [MSGKEY] [FILENAME] [PRIORITY]\n", argv[0]);
         exit(0);
     }
 
@@ -53,7 +28,12 @@ int main(int argc, char** argv) {
         exit(0);
     }
 
+    if (sscanf(argv[3], "%d", &temp2) < 1) {
+        perror("Failed to read priority");
+    }
+
     msgKey = (long) temp;
+    priority = (long) temp2;
     // assign mKey from user input here
     // obtain the corresponding message queue
     if ((msgQID = msgget(msgKey, 0666)) < 0 ) {
@@ -61,33 +41,34 @@ int main(int argc, char** argv) {
        exit(EXIT_FAILURE);
     }
 
-    // sendMsg.mesg_len = sizeof(struct Message);
-    sendMsg.mesg_type = CLIENT_MSG_TYPE;
+    sendMsg.mesg_type = priority;
     msgFlags = 0;
 
     // send the requested filename to server
-    sprintf(sendMsg.mesg_data, "%s %d", argv[2], getpid());
+    sprintf(sendMsg.mesg_data, "%s %d %ld", argv[2], getpid(), priority);
+
     if (msgsnd(msgQID, &sendMsg, strlen(sendMsg.mesg_data) + 1, msgFlags) < 0)
     {
         perror("CLIENT: msgsnd");
         exit(EXIT_FAILURE);
     }
+
     printf("Requested filename and PID: %s\n", sendMsg.mesg_data);
     printf("Waiting for file contents...\n");
-    /*-----------------------------------------*/
-    /* Receive filename data from server.          */
-    /*-----------------------------------------*/
-    msgType = getpid();
-    msgFlags = 0;
 
+    msgType = getpid();
     
     while (x != 1) {
-        if (msgrcv(msgQID, &recvMsg, MAXMESSAGEDATA, msgType, 0) < 0)
+        if (msgrcv(msgQID, &recvMsg, MAXMESSAGEDATA / priority, msgType, 0) < 0)
         {
             perror("CLIENT: msgrcv");
             exit(EXIT_FAILURE);
         }
-        printf("%s\n", recvMsg.mesg_data);
+        if (start == 0) {
+            init = (tm.tm_min * 60) + tm.tm_sec;
+            start++;
+        }
+        printf("%s", recvMsg.mesg_data);
         for (int i = 0; recvMsg.mesg_data[i] != '\0'; i++) {
             if (recvMsg.mesg_data[i] == EOF) {
                 x = 1;
@@ -95,6 +76,10 @@ int main(int argc, char** argv) {
             }
         }
     }
-    printf("Message successfully received.\n");
+    t = time(NULL);
+    tm = *localtime(&t);
+    final = (tm.tm_min * 60) + tm.tm_sec;
+    
+    printf("File successfully received.\nTotal transfer time: %d seconds.\nPriority: %ld\n", (final - init), priority);
     exit(EXIT_SUCCESS);
-}  /* end of main() */
+} 
