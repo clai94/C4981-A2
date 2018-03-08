@@ -1,3 +1,23 @@
+/*------------------------------------------------------------------------------------------------------------------
+-- HEADER FILE: mesg.h
+--
+-- PROGRAM: 
+--
+-- FUNCTIONS:
+--
+--
+-- DATE: March 1, 2018
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Calvin Lai
+--
+-- PROGRAMMER: Calvin Lai
+--
+-- NOTES:
+--
+----------------------------------------------------------------------------------------------------------------------*/
+
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
@@ -7,6 +27,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <time.h>
 
 #define MAX_MSGSIZE           256    // max message size

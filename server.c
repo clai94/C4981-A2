@@ -1,3 +1,24 @@
+/*------------------------------------------------------------------------------------------------------------------
+-- SOURCE FILE: server.c
+--
+-- PROGRAM: 
+--
+-- FUNCTIONS:
+-- int main(int, char**)
+--
+-- DATE: March 1, 2018
+--
+-- REVISIONS: (Date and Description)
+--
+-- DESIGNER: Calvin Lai
+--
+-- PROGRAMMER: Calvin Lai
+--
+-- NOTES:
+-- A simple server that uses a message queue to send a file requested by a client program. Has built in priority based
+-- determined by the client.
+----------------------------------------------------------------------------------------------------------------------*/
+
 #include "mesg.h"
 #include "messages.c"
 
@@ -40,9 +61,9 @@ int main(int argc, char** argv) {
 
     msgType = CLIENT_MSG_TYPE;
     msgFlags = 0;
-
+        
+    printf("Waiting for client...\n");
     while(1) {
-        printf("Waiting for client...\n Client count: %d\n", count);
 
         if (msgrcv(msgQID, &recvMsg, MAXMESSAGEDATA, msgType, 0) < 0)
         {
@@ -60,7 +81,6 @@ int main(int argc, char** argv) {
             long client_pid;
             long priority;
             sscanf(recvMsg.mesg_data, "%s %ld %ld", filename, &client_pid, &priority);
-            printf("%s\n", recvMsg.mesg_data);
             printf("Requested file: %s\n", filename);
             printf("Client ID: %ld\n", client_pid);
             printf("Client Priority: %ld\n", priority);
@@ -87,7 +107,7 @@ int main(int argc, char** argv) {
                         perror("SERVER: msgsnd");
                         exit(EXIT_FAILURE);
                     }
-                    // mesg_send(msgQID, sendMsg);
+                    // mesg_send(msgQID, &sendMsg);
                 }
             }
 
@@ -101,7 +121,7 @@ int main(int argc, char** argv) {
 
 
             fclose(fp);
-            printf("File successully sent.\n");
+            printf("File successully sent to client: %ld.\n", client_pid);
             exit(EXIT_SUCCESS);
 
         } else {
